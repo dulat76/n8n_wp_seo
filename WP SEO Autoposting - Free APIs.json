@@ -447,7 +447,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"inputs\": \"='Professional blog cover art for article about ' + $('Merge Blog Versions1').first().json.primaryKeyword + ', modern minimalist design, clean background, 3:4 aspect ratio, no text, no watermark, high quality, digital art style'\",\n  \"parameters\": {\n    \"negative_prompt\": \"text, watermark, signature, letters, words, low quality, blurry\"\n  }\n}",
+        "jsonBody": "={\n  \"inputs\": \"='Professional blog cover art for article about ' + ($('Merge Blog Versions1').isExecuted ? $('Merge Blog Versions1').first().json.primaryKeyword : 'blog post') + ', modern minimalist design, clean background, 3:4 aspect ratio, no text, no watermark, high quality, digital art style'\",\n  \"parameters\": {\n    \"negative_prompt\": \"text, watermark, signature, letters, words, low quality, blurry\"\n  },\n  \"options\": {\n    \"wait_for_model\": true\n  }\n}",
         "options": {
           "response": {
             "response": {
