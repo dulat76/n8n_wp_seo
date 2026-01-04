@@ -1,5 +1,9 @@
 # Решение проблемы с HuggingFace API
 
+## Проблема: "api-inference.huggingface.co is no longer supported"
+
+**Важно:** HuggingFace прекратил поддержку старого endpoint. Обязательно используйте `router.huggingface.co`.
+
 ## Проблема: "The resource you are requesting could not be found"
 
 Эта ошибка может возникать по нескольким причинам:
