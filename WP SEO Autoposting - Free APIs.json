@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "// Config Node - вынос конфигурации\nreturn [{\n  json: {\n    wordpressSite: process.env.WORDPRESS_SITE || 'YOUR_WORDPRESS_SITE.com',\n    telegramLink: process.env.TELEGRAM_LINK || 'YOUR_TELEGRAM_LINK',\n    bannerUrl: process.env.BANNER_URL || 'YOUR_BANNER_URL',\n    googleSearchApiKey: process.env.GOOGLE_SEARCH_API_KEY || 'AIzaSyDzLkmLdpw7dK4qDg2ib-q39586mDNiWss',\n    googleSearchCx: process.env.GOOGLE_SEARCH_CX || 'c7cc77fb391b648f3'\n  }\n}];"
+        "jsCode": "// Config Node - вынос конфигурации\n// Измените значения ниже на ваши настройки\nconst config = {\n  wordpressSite: 'YOUR_WORDPRESS_SITE.com',\n  telegramLink: 'YOUR_TELEGRAM_LINK',\n  bannerUrl: 'YOUR_BANNER_URL',\n  googleSearchApiKey: 'AIzaSyDzLkmLdpw7dK4qDg2ib-q39586mDNiWss',\n  googleSearchCx: 'c7cc77fb391b648f3'\n};\n\nreturn [{\n  json: config\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
