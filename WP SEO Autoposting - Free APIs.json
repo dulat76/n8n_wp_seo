@@ -247,7 +247,7 @@
           "conditions": [
             {
               "id": "check-posts-exist",
-              "leftValue": "={{ $json.length > 0 }}",
+              "leftValue": "={{ $input.all().length > 0 }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -256,6 +256,9 @@
             }
           ],
           "combinator": "and"
+        },
+        "options": {
+          "convertTypes": true
         },
         "options": {}
       },
