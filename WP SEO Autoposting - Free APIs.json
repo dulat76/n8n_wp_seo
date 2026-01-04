@@ -1,0 +1,963 @@
+{
+  "name": "WP SEO Autoposting - Free APIs",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const blogPost = $input.first().json.choices[0].message.content;\nconst citationsData = $('Replace Citations with URLs1').first().json;\n\nreturn [{\n  json: {\n    blogText: blogPost,\n    keywords: citationsData.keywords,\n    intent: citationsData.intent,\n    primaryKeyword: citationsData.primaryKeyword,\n    rowNumber: citationsData.rowNumber\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2192,
+        320
+      ],
+      "id": "f68317df-4346-4a06-843d-4a8fb54e5ab9",
+      "name": "Prepare Blog Data"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "13vWuIBj6AOUumXpT4-geMwjHhE-eBlAf1_TjKNBduLU",
+          "mode": "list",
+          "cachedResultName": "seo blog keywords",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/13vWuIBj6AOUumXpT4-geMwjHhE-eBlAf1_TjKNBduLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Лист1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/13vWuIBj6AOUumXpT4-geMwjHhE-eBlAf1_TjKNBduLU/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Уже написана статья?",
+              "lookupValue": "нет"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -2800,
+        64
+      ],
+      "id": "a0650362-88ed-44e8-aa86-64d28ef96999",
+      "name": "Get Keywords from Sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HwCtqKnZrI4x79ER",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are part of a team that creates world-class SEO blog posts for Russian small businesses. You write for Russian-speaking readers.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a preliminary plan for a blog post.\\n\\nKeywords: {{ $('Get Keywords from Sheet1').item.json['Ключевые слова'] }}\\n\\nSearch intent: {{ $('Get Keywords from Sheet1').item.json['Намерение'] }}\\n\\nPrimary keyword: {{ $('Get Keywords from Sheet1').item.json['Основное ключевое слово'] }}\\n\\nYour output must:\\n- Recognize the discussion points\\n- Be in dot point format\\n- Satisfy the search intent\\n- Revolve around the given keywords\\n\\nCreate the preliminary plan.\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 2000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2576,
+        64
+      ],
+      "id": "fcba39c2-dd7d-4d49-869d-081836d1a635",
+      "name": "Create High-Level Plan (Groq)1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oIVxXeP17xjNZbcH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const keywordsString = $('Get Keywords from Sheet1').first().json['Ключевые слова'];\nconst keywords = keywordsString\n  .split(',')\n  .map(k => k.trim())\n  .filter(k => k.length > 0);\n\nreturn keywords.map(keyword => ({\n  json: { query: keyword }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2352,
+        64
+      ],
+      "id": "abdd3713-3e7f-485d-a749-ead09c6ec5c2",
+      "name": "Split Keywords1"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/customsearch/v1?key=AIzaSyDzLkmLdpw7dK4qDg2ib-q39586mDNiWss&cx=c7cc77fb391b648f3&q={{ $json.query }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2128,
+        64
+      ],
+      "id": "3f40ecd5-7d56-499d-9164-cc64d23384df",
+      "name": "Google Custom Search1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst allResults = [];\n\nfor (const item of items) {\n  if (item.json.items && Array.isArray(item.json.items)) {\n    for (const result of item.json.items) {\n      allResults.push({\n        title: result.title,\n        link: result.link,\n        snippet: result.snippet\n      });\n    }\n  }\n}\n\nconst citations = allResults.map(r => r.link);\nconst researchText = allResults.map((r, i) => \n  `[${i + 1}] ${r.title}: ${r.snippet}`\n).join('\\n\\n');\n\n// Получаем данные из первого узла\nconst keywordData = $('Get Keywords from Sheet1').first().json;\n\nreturn [{\n  json: {\n    citations: citations,\n    researchFindings: researchText,\n    keywords: keywordData['Ключевые слова'],\n    intent: keywordData['Намерение'],\n    primaryKeyword: keywordData['Основное ключевое слово'],\n    rowNumber: keywordData.row_number\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3040,
+        320
+      ],
+      "id": "ebfc90aa-65b5-4c51-a272-c44303a746c7",
+      "name": "Aggregate Research1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You create detailed blog post plans with proper citations. For each section, provide a 3-4 word phrase that will be clickable text linking to a reputable source.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"='Create a detailed plan for the blog post.\\\\n\\\\nKeywords: ' + $json.keywords + '\\\\n\\\\nSearch intent: ' + $json.intent + '\\\\n\\\\nPrimary keyword: ' + $json.primaryKeyword + '\\\\n\\\\nPreliminary plan: ' + $('Create High-Level Plan (Groq)').first().json.choices[0].message.content + '\\\\n\\\\nResearch findings with citations: ' + $json.researchFindings + '\\\\n\\\\nFor each section (except conclusion), include a phrase in format [phrase](citation_number) where citation_number refers to the research findings above.\\\\n\\\\nYour output must:\\\\n- Include a detailed plan\\\\n- Be in dot point format\\\\n- Mention which keywords to place in each section\\\\n- Include citation phrases for each section\\\\n- Be very detailed with technical specifics' }}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 3000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2816,
+        320
+      ],
+      "id": "edd963d8-9de9-40cc-a163-5d72b3768e24",
+      "name": "Create Detailed Plan (Groq)1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oIVxXeP17xjNZbcH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const detailedPlan = $('Create Detailed Plan (Groq)1').first().json.choices[0].message.content;\nconst aggregateData = $('Aggregate Research1').first().json;\nconst citations = aggregateData.citations;\n\nlet result = detailedPlan;\nconst citationPattern = /\\[(\\d+)\\]/g;\n\nresult = result.replace(citationPattern, (match, num) => {\n  const index = parseInt(num) - 1;\n  if (index >= 0 && index < citations.length) {\n    return `(${citations[index]})`;\n  }\n  return match;\n});\n\nreturn [{ \n  json: { \n    detailedPlan: result,\n    keywords: aggregateData.keywords,\n    intent: aggregateData.intent,\n    primaryKeyword: aggregateData.primaryKeyword,\n    rowNumber: aggregateData.rowNumber\n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2592,
+        320
+      ],
+      "id": "c3f932df-5e00-4914-b2f0-bbcc92f9582f",
+      "name": "Replace Citations with URLs1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert copywriter creating SEO-optimized blog posts for Russian readers. Write in Russian language.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"='Write a complete blog post following this detailed plan:\\\\n\\\\n' + $json.detailedPlan + '\\\\n\\\\nRequirements:\\\\n- Follow the plan exactly\\\\n- Use short, concise paragraphs\\\\n- Include keywords naturally\\\\n- Place links as [phrase](url) format\\\\n- Primary keyword in title and introduction: ' + $json.primaryKeyword + '\\\\n- Use H1 for title, H2 for sections\\\\n- 2000-2500 words minimum\\\\n- Year 5 reading level\\\\n- No fluff, value-dense content\\\\n- Use bullet points where appropriate\\\\n\\\\nWrite the complete blog post in Russian.'\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 4000\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2368,
+        320
+      ],
+      "id": "cb453d37-1908-417a-bb86-47f13344eb4f",
+      "name": "Write Blog Post (Groq)1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oIVxXeP17xjNZbcH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "13vWuIBj6AOUumXpT4-geMwjHhE-eBlAf1_TjKNBduLU",
+          "mode": "list",
+          "cachedResultName": "seo blog keywords",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/13vWuIBj6AOUumXpT4-geMwjHhE-eBlAf1_TjKNBduLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Лист1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/13vWuIBj6AOUumXpT4-geMwjHhE-eBlAf1_TjKNBduLU/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -2016,
+        320
+      ],
+      "id": "5f0a92f2-040b-4e0a-82e0-530b199764cb",
+      "name": "Get Existing Posts1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HwCtqKnZrI4x79ER",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-posts-exist",
+              "leftValue": "={{ $json.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3040,
+        768
+      ],
+      "id": "bd60dc9c-5402-4ff6-b7bd-163a2c3705da",
+      "name": "Has Existing Posts?1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You add internal links to blog posts. Only link to highly relevant previous posts. Add 2-3 internal links in format [phrase](url).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Current blog post:\\n{{ $('Prepare Blog Data').first().json.blogText }}\\n\\nPrevious posts (Ссылка=url, Содержание=summary):\\n{{ $('Get Existing Posts1').all().map(i => `URL: ${i.json['Ссылка']}, Summary: ${i.json['Содержание']}`).join('\\n') }}\\n\\nAdd 2-3 relevant internal links. Output the complete blog post with added links.\"\n    }\n  ],\n  \"temperature\": 0.5,\n  \"max_tokens\": 4000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2816,
+        688
+      ],
+      "id": "8886eda0-3192-4455-ad63-f5b0eafbbdfa",
+      "name": "Add Internal Links (Groq)1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-blog-text",
+              "name": "blogText",
+              "value": "={{ $('Prepare Blog Data').first().json.blogText }}",
+              "type": "string"
+            },
+            {
+              "id": "set-keywords",
+              "name": "keywords",
+              "value": "={{ $('Prepare Blog Data').first().json.keywords }}",
+              "type": "string"
+            },
+            {
+              "id": "set-primary-keyword",
+              "name": "primaryKeyword",
+              "value": "={{ $('Prepare Blog Data').first().json.primaryKeyword }}",
+              "type": "string"
+            },
+            {
+              "id": "set-row-number",
+              "name": "rowNumber",
+              "value": "={{ $('Prepare Blog Data').first().json.rowNumber }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2816,
+        896
+      ],
+      "id": "8ffb03be-e727-4ce0-95f8-29a059cdc865",
+      "name": "Set Blog Text (No Links)1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "merge-blog",
+              "name": "finalBlogText",
+              "value": "={{ $json.choices ? $json.choices[0].message.content : $json.blogText }}",
+              "type": "string"
+            },
+            {
+              "id": "merge-keywords",
+              "name": "keywords",
+              "value": "={{ $json.keywords || $('Prepare Blog Data').first().json.keywords }}",
+              "type": "string"
+            },
+            {
+              "id": "merge-primary",
+              "name": "primaryKeyword",
+              "value": "={{ $json.primaryKeyword || $('Prepare Blog Data').first().json.primaryKeyword }}",
+              "type": "string"
+            },
+            {
+              "id": "merge-row",
+              "name": "rowNumber",
+              "value": "={{ $json.rowNumber || $('Prepare Blog Data').first().json.rowNumber }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2592,
+        800
+      ],
+      "id": "5b07190f-ea9f-440f-ab90-cf2871a577ad",
+      "name": "Merge Blog Versions1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a URL slug (in English) for this blog post. Max 5 words. Include primary keyword: {{ $('Merge Blog Versions1').first().json.primaryKeyword }}\\n\\nBlog post:\\n{{ $('Merge Blog Versions1').first().json.finalBlogText }}\\n\\nOutput only the slug, nothing else. Format: word-word-word\"\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 50\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2368,
+        624
+      ],
+      "id": "2c944267-030f-4e9b-b619-30a1c2902a30",
+      "name": "Create Slug (Groq)1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Extract the blog post title from this text. Must include primary keyword: {{ $('Merge Blog Versions1').first().json.primaryKeyword }}. Max 65 characters. No quotes or formatting.\\n\\nBlog post:\\n{{ $('Merge Blog Versions1').first().json.finalBlogText }}\\n\\nOutput only the title in Russian.\"\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 100\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2368,
+        784
+      ],
+      "id": "aa97208e-877c-4341-b26b-555c813c94b1",
+      "name": "Create Title (Groq)1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create SEO meta description in Russian. 150-160 characters. Include primary keyword: {{ $('Merge Blog Versions1').first().json.primaryKeyword }}. Be engaging and descriptive.\\n\\nBlog post:\\n{{ $('Merge Blog Versions1').first().json.finalBlogText }}\\n\\nOutput only the meta description as plain text.\"\n    }\n  ],\n  \"temperature\": 0.5,\n  \"max_tokens\": 150\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2368,
+        896
+      ],
+      "id": "db025996-1c6d-4bb2-8c46-10c85d762789",
+      "name": "Create Meta Description (Groq)1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Convert this blog post to clean HTML. Use inline CSS styles. H2 font-size: 32px. Add <br> before each H2. Include this banner naturally in the middle: <a href='YOUR_TELEGRAM_LINK'><img src='YOUR_BANNER_URL' alt='Telegram' /></a>\\n\\nBlog post:\\n{{ $('Merge Blog Versions1').item.json.finalBlogText }}\\n\\nOutput only <body> tag with content inside. No external stylesheets.\"\n    }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 4000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2144,
+        800
+      ],
+      "id": "ca354eae-8d56-4607-94b8-0ecdcf1042a5",
+      "name": "Create HTML (Groq)1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"inputs\": \"Cute cartoon businessman and robot talking, ice princess theme, magical winter scene, professional blog cover art, 3:4 aspect ratio, no text\",\n  \"parameters\": {\n    \"negative_prompt\": \"text, watermark, signature, letters, words\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3024,
+        1200
+      ],
+      "id": "ba35f772-7223-4adb-933d-6f787afa3da5",
+      "name": "Generate Cover Image (HuggingFace)1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://YOUR_WORDPRESS_SITE.com/wp-json/wp/v2/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\n  \"Content-Disposition\": \"attachment; filename='{{ $('Create Slug (Groq)1').item.json.choices[0].message.content.trim() }}.png'\",\n  \"Content-Type\": \"image/png\"\n}",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2816,
+        1200
+      ],
+      "id": "132b552e-184b-4f21-b09f-8e3bf810cd74",
+      "name": "Upload Image to WordPress1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://YOUR_WORDPRESS_SITE.com/wp-json/wp/v2/media/{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"alt_text\": \"обложка для статьи про {{ $('Create Title (Groq)1').item.json.choices[0].message.content.trim() }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2592,
+        1200
+      ],
+      "id": "fca70228-3731-4914-a420-88e817de714b",
+      "name": "Set Image Alt Text1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_WORDPRESS_SITE.com/wp-json/wp/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"publish\",\n  \"slug\": \"{{ $('Create Slug (Groq)1').first().json.choices[0].message.content.trim() }}\",\n  \"title\": \"{{ $('Create Title (Groq)1').first().json.choices[0].message.content.trim() }}\",\n  \"featured_media\": {{ $('Set Image Alt Text1').first().json.id }},\n  \"comment_status\": \"closed\",\n  \"content\": \"{{ $('Create HTML (Groq)1').first().json.choices[0].message.content.replace(/```html\\n|```/g, '').replace(/\"/g, \"'\").replace(/\\n/g, '') }}\",\n  \"excerpt\": \"{{ $('Create Meta Description (Groq)1').first().json.choices[0].message.content.trim() }}\",\n  \"meta\": {\n    \"custom_seo_keywords\": \"{{ $('Merge Blog Versions1').first().json.keywords }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2368,
+        1200
+      ],
+      "id": "1c752c48-dc3e-41e1-97f0-83640f03b979",
+      "name": "Create WordPress Post1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a short summary (max 50 words) in Russian for this blog post:\\n\\n{{ $('Merge Blog Versions1').item.json.finalBlogText }}\"\n    }\n  ],\n  \"temperature\": 0.5,\n  \"max_tokens\": 100\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2160,
+        1200
+      ],
+      "id": "52058460-51c0-436e-935b-97d03033d804",
+      "name": "Create Summary (Groq)1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "13vWuIBj6AOUumXpT4-geMwjHhE-eBlAf1_TjKNBduLU",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('Merge Blog Versions1').first().json.rowNumber }}",
+            "Уже есть написана статья?": "Да",
+            "Ссылка": "={{ $('Create WordPress Post1').first().json.link }}",
+            "Содержание": "={{ $('Create Summary (Groq)1').first().json.choices[0].message.content }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1952,
+        1200
+      ],
+      "id": "5daa0d51-8c70-4c37-b788-459a4d39c0e3",
+      "name": "Update Google Sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HwCtqKnZrI4x79ER",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -3072,
+        64
+      ],
+      "id": "a28cb6cf-d95e-4b34-8662-c61a03a6de96",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are part of a team that creates world-class SEO blog posts for Russian small businesses. You write for Russian-speaking readers.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a preliminary plan for a blog post.\\n\\nKeywords: {{ $('Get Keywords from Sheet').item.json['Ключевые слова'] }}\\n\\nSearch intent: {{ $('Get Keywords from Sheet').item.json['Намерение'] }}\\n\\nPrimary keyword: {{ $('Get Keywords from Sheet').item.json['Основное ключевое слово'] }}\\n\\nYour output must:\\n- Recognize the discussion points\\n- Be in dot point format\\n- Satisfy the search intent\\n- Revolve around the given keywords\\n\\nCreate the preliminary plan.\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 2000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2496,
+        -112
+      ],
+      "id": "45edb99b-bb85-4f1f-a2c9-56e3eee2ce87",
+      "name": "Create High-Level Plan (Groq)2",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oIVxXeP17xjNZbcH",
+          "name": "Header Auth account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You create detailed blog post plans with proper citations. For each section, provide a 3-4 word phrase that will be clickable text linking to a reputable source.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a detailed plan for the blog post.\\n\\nKeywords: {{ $json.keywords }}\\n\\nSearch intent: {{ $json.intent }}\\n\\nPrimary keyword: {{ $json.primaryKeyword }}\\n\\nPreliminary plan: {{ $('Create High-Level Plan (Groq)1').first().json.choices[0].message.content }}\\n\\nResearch findings with citations: {{ $json.researchFindings }}\\n\\nFor each section (except conclusion), include a phrase in format [phrase](citation_number) where citation_number refers to the research findings above.\\n\\nYour output must:\\n- Include a detailed plan\\n- Be in dot point format\\n- Mention which keywords to place in each section\\n- Include citation phrases for each section\\n- Be very detailed with technical specifics\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 3000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2768,
+        480
+      ],
+      "id": "58dd074e-6c9e-4634-b838-2e12af5ced14",
+      "name": "Create Detailed Plan (Groq)2",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "oIVxXeP17xjNZbcH",
+          "name": "Header Auth account"
+        }
+      },
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Prepare Blog Data": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Posts1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Keywords from Sheet1": {
+      "main": [
+        [
+          {
+            "node": "Create High-Level Plan (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create High-Level Plan (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Split Keywords1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Keywords1": {
+      "main": [
+        [
+          {
+            "node": "Google Custom Search1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Custom Search1": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Research1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Research1": {
+      "main": [
+        [
+          {
+            "node": "Create Detailed Plan (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Detailed Plan (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Replace Citations with URLs1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Citations with URLs1": {
+      "main": [
+        [
+          {
+            "node": "Write Blog Post (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Blog Post (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Blog Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Posts1": {
+      "main": [
+        [
+          {
+            "node": "Has Existing Posts?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Existing Posts?1": {
+      "main": [
+        [
+          {
+            "node": "Add Internal Links (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Blog Text (No Links)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Internal Links (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Merge Blog Versions1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Blog Text (No Links)1": {
+      "main": [
+        [
+          {
+            "node": "Merge Blog Versions1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Blog Versions1": {
+      "main": [
+        [
+          {
+            "node": "Create Slug (Groq)1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Title (Groq)1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Meta Description (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Slug (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Create HTML (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Title (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Create HTML (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Meta Description (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Create HTML (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create HTML (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Generate Cover Image (HuggingFace)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Cover Image (HuggingFace)1": {
+      "main": [
+        [
+          {
+            "node": "Upload Image to WordPress1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Image to WordPress1": {
+      "main": [
+        [
+          {
+            "node": "Set Image Alt Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Image Alt Text1": {
+      "main": [
+        [
+          {
+            "node": "Create WordPress Post1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create WordPress Post1": {
+      "main": [
+        [
+          {
+            "node": "Create Summary (Groq)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Summary (Groq)1": {
+      "main": [
+        [
+          {
+            "node": "Update Google Sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Keywords from Sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create High-Level Plan (Groq)2": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "09c26f52-1fb2-4cfb-a9ef-a3fca8e0ef12",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3c9ab48a8950ae0c20e2bef6792a442d93c2cfb6f370e097340a39778af67687"
+  },
+  "id": "tJ7XacqMiJn9ZB3W",
+  "tags": []
+}
